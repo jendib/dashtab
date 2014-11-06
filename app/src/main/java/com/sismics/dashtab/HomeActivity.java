@@ -3,8 +3,11 @@ package com.sismics.dashtab;
 import android.app.Activity;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -12,15 +15,66 @@ import com.google.android.gms.common.GooglePlayServicesClient;
 import com.google.android.gms.location.LocationClient;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
+import com.sismics.dashtab.datahelper.CompassDataHelper;
+import com.sismics.dashtab.datahelper.PlayLocationDataHelper;
+import com.sismics.dashtab.view.SpeedView;
 
-public class HomeActivity extends Activity implements
-        GooglePlayServicesClient.ConnectionCallbacks,
-        GooglePlayServicesClient.OnConnectionFailedListener,
-        LocationListener {
+public class HomeActivity extends Activity {
 
+    private PlayLocationDataHelper playLocationDataHelper;
+    private CompassDataHelper compassDataHelper;
+
+    private Handler handler = new Handler();
+
+    // User interface
     private TextView txtSpeed;
+    private ImageView imgCompass;
+    private TextView txtCompass;
+    private SpeedView speedView;
 
-    private LocationClient locationClient;
+    private int debugSpeed = 0;
+    private boolean debugRaising = true;
+
+    private final Runnable updateRunnable = new Runnable() {
+        @Override
+        public void run() {
+            // Speedometer GPS
+            Location location = playLocationDataHelper.getLocation();
+            if (location != null) {
+                // txtSpeed.setText("" + (int) location.getSpeed());
+
+                if (debugRaising && debugSpeed < 160) {
+                    debugSpeed += 5;
+                } else if (debugRaising && debugSpeed == 160) {
+                    debugSpeed -= 5;
+                    debugRaising = false;
+                } else if (!debugRaising && debugSpeed > 0) {
+                    debugSpeed -= 5;
+                } else if (!debugRaising && debugSpeed == 0) {
+                    debugSpeed += 5;
+                    debugRaising = true;
+                }
+                txtSpeed.setText("" + debugSpeed);
+                speedView.setValue(debugSpeed);
+                speedView.invalidate();
+            }
+
+            // Compass
+            double azimuth = compassDataHelper.getAzimuth() + 90f;
+            imgCompass.setRotation((float) azimuth);
+            if (azimuth > -45 && azimuth <= 45) {
+                txtCompass.setText("N");
+            } else if (azimuth > 45 && azimuth <= 135) {
+                txtCompass.setText("E");
+            } else if (azimuth > 135 && azimuth <= 225) {
+                txtCompass.setText("S");
+            } else if (azimuth > 225 && azimuth <= 270 || azimuth >= -90 && azimuth <= -45) {
+                txtCompass.setText("W");
+            }
+
+            handler.postDelayed(updateRunnable, 100);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,38 +92,30 @@ public class HomeActivity extends Activity implements
                 | View.SYSTEM_UI_FLAG_FULLSCREEN
                 | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
-        // WindowManager.LayoutParams layout = getWindow().getAttributes();
-        // layout.screenBrightness = 1F;
-        // getWindow().setAttributes(layout);
-
+        // Cache user interface
         txtSpeed = (TextView) findViewById(R.id.speed);
+        imgCompass = (ImageView) findViewById(R.id.compass);
+        txtCompass = (TextView) findViewById(R.id.compassDirection);
+        speedView = (SpeedView) findViewById(R.id.speedView);
 
-        locationClient = new LocationClient(this, this, this);
-        locationClient.connect();
+        // Initialize data helper
+        playLocationDataHelper = new PlayLocationDataHelper(this);
+        playLocationDataHelper.onCreate();
+
+        compassDataHelper = new CompassDataHelper(this);
+        compassDataHelper.onCreate();
+
+        // Start refreshing the user interface
+        handler.post(updateRunnable);
     }
 
     @Override
-    public void onConnected(Bundle bundle) {
-        LocationRequest locationRequest = LocationRequest.create();
-        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        locationRequest.setInterval(100);
-        locationRequest.setFastestInterval(50);
+    protected void onDestroy() {
+        handler.removeCallbacks(updateRunnable);
 
-        locationClient.requestLocationUpdates(locationRequest, this);
-    }
+        playLocationDataHelper.onDestroy();
+        compassDataHelper.onDestroy();
 
-    @Override
-    public void onDisconnected() {
-
-    }
-
-    @Override
-    public void onConnectionFailed(ConnectionResult connectionResult) {
-
-    }
-
-    @Override
-    public void onLocationChanged(Location location) {
-        txtSpeed.setText(Float.toString(location.getSpeed()));
+        super.onDestroy();
     }
 }
