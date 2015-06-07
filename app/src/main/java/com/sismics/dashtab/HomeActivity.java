@@ -4,23 +4,17 @@ import android.app.Activity;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesClient;
-import com.google.android.gms.location.LocationClient;
-import com.google.android.gms.location.LocationListener;
-import com.google.android.gms.location.LocationRequest;
 import com.sismics.dashtab.datahelper.CompassDataHelper;
 import com.sismics.dashtab.datahelper.PlayLocationDataHelper;
 import com.sismics.dashtab.view.SpeedView;
 
 public class HomeActivity extends Activity {
-
+    // Data helpers
     private PlayLocationDataHelper playLocationDataHelper;
     private CompassDataHelper compassDataHelper;
 

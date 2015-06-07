@@ -5,20 +5,20 @@ import android.location.Location;
 import android.os.Bundle;
 
 import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesClient;
-import com.google.android.gms.location.LocationClient;
+import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
+import com.google.android.gms.location.LocationServices;
 
 /**
  * @author bgamard.
  */
 public class PlayLocationDataHelper extends DataHelper implements
-        GooglePlayServicesClient.ConnectionCallbacks,
-        GooglePlayServicesClient.OnConnectionFailedListener,
+        GoogleApiClient.ConnectionCallbacks,
+        GoogleApiClient.OnConnectionFailedListener,
         LocationListener {
 
-    private LocationClient locationClient;
+    private GoogleApiClient googleApiClient;
 
     private Location location;
 
@@ -28,14 +28,18 @@ public class PlayLocationDataHelper extends DataHelper implements
 
     @Override
     public void onCreate() {
-        locationClient = new LocationClient(context, this, this);
-        locationClient.connect();
+        googleApiClient = new GoogleApiClient.Builder(context)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API)
+                .build();
+        googleApiClient.connect();
     }
 
     @Override
     public void onDestroy() {
-        if (locationClient != null) {
-            locationClient.disconnect();
+        if (googleApiClient != null) {
+            googleApiClient.disconnect();
         }
     }
 
@@ -46,11 +50,11 @@ public class PlayLocationDataHelper extends DataHelper implements
         locationRequest.setInterval(100);
         locationRequest.setFastestInterval(50);
 
-        locationClient.requestLocationUpdates(locationRequest, this);
+        LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
     }
 
     @Override
-    public void onDisconnected() {
+    public void onConnectionSuspended(int i) {
 
     }
 
