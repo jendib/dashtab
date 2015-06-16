@@ -1,9 +1,20 @@
 package com.sismics.dashtab;
 
 import android.app.Activity;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattDescriptor;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothProfile;
+import android.content.Context;
 import android.location.Location;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
@@ -12,6 +23,8 @@ import android.widget.TextView;
 import com.sismics.dashtab.datahelper.CompassDataHelper;
 import com.sismics.dashtab.datahelper.PlayLocationDataHelper;
 import com.sismics.dashtab.view.SpeedView;
+
+import java.util.UUID;
 
 public class HomeActivity extends Activity {
     // Data helpers
@@ -101,6 +114,9 @@ public class HomeActivity extends Activity {
 
         // Start refreshing the user interface
         handler.post(updateRunnable);
+
+        // Connect to Tessel
+        connectBluetooth();
     }
 
     @Override
@@ -109,7 +125,60 @@ public class HomeActivity extends Activity {
 
         playLocationDataHelper.onDestroy();
         compassDataHelper.onDestroy();
+        if (bluetoothGatt != null) {
+            bluetoothGatt.close();
+        }
 
         super.onDestroy();
+    }
+
+    private BluetoothGatt bluetoothGatt;
+    private BluetoothAdapter bluetoothAdapter;
+
+    private String TAG = "DashTab";
+
+    private BluetoothAdapter.LeScanCallback scanCallback = new BluetoothAdapter.LeScanCallback() {
+        @Override
+        public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+            if ("Tessel".equals(device.getName())) {
+                connectBluetoothDevice(device);
+            }
+        }
+    };
+
+    private void connectBluetooth() {
+        final BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        bluetoothAdapter = bluetoothManager.getAdapter();
+        bluetoothAdapter.startLeScan(scanCallback);
+    }
+
+    private void connectBluetoothDevice(BluetoothDevice device) {
+        bluetoothAdapter.stopLeScan(scanCallback);
+        bluetoothGatt = device.connectGatt(this, false, new BluetoothGattCallback() {
+            @Override
+            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                if (newState == BluetoothProfile.STATE_CONNECTED) {
+                    Log.i(TAG, "Connected to GATT server.");
+                    gatt.discoverServices();
+                } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                    Log.i(TAG, "Disconnected from GATT server.");
+                }
+            }
+
+            @Override
+            public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                BluetoothGattService service = gatt.getService(UUID.fromString("d752c5fb-1380-4cd5-b0ef-cac7d72cff20"));
+                BluetoothGattCharacteristic characteristic = service.getCharacteristic(UUID.fromString("883f1e6b-76f6-4da1-87eb-6bdbdb617888"));
+                gatt.setCharacteristicNotification(characteristic, true);
+                BluetoothGattDescriptor descriptor = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                gatt.writeDescriptor(descriptor);
+            }
+
+            @Override
+            public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+                Log.i(TAG, "characteristic changed: " + new String(characteristic.getValue()));
+            }
+        });
     }
 }
